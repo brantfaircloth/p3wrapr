@@ -121,9 +121,6 @@ class Settings:
             
 class Primers:                            
     def __init__(self):
-    #def __init__(self, design, **kwargs):
-        #self.design = design
-        #self._locals(self.design, **kwargs)
         pass
     
     def _locals(self, obj, **kwargs):
