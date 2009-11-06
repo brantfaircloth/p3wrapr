@@ -1,0 +1,341 @@
+#!/usr/bin/env python
+# encoding: utf-8
+"""
+primer3.py
+
+Created by Brant Faircloth on 2009-10-31.
+Copyright (c) 2009 Brant Faircloth. All rights reserved.
+
+
+The following (unittests) assume that primer3_core and primer3_config are 
+somewhere on the system path.  I've used /usr/local/bin for both.
+"""
+
+import sys
+import os
+import pdb
+import shutil
+import string
+import tempfile
+import unittest
+import subprocess
+
+
+class Settings:
+    def __init__(self):
+        '''set default primer3 params'''
+        #pdb.set_trace()
+        self.td = None
+        self.params = {}
+        # create temporary directory
+        if not self.td or not os.path.isdir(self.td):
+            self.td = tempfile.mkdtemp(prefix='py-primer3-', suffix='')
+    
+    def __del__(self):
+        #pdb.set_trace()
+        shutil.rmtree(self.td)
+    
+    def _is_exe(self, fpath):
+        '''called by _which, below.  taken from: 
+        http://stackoverflow.com/questions/377017/test-if-executable-exists-in-python'''
+        return os.path.exists(fpath) and os.access(fpath, os.X_OK)
+    
+    def _which(self, program):
+        '''equivalent to Unix `which`.  taken from: 
+        http://stackoverflow.com/questions/377017/test-if-executable-exists-in-python'''
+        fpath, fname = os.path.split(program)
+        if fpath:
+            if self._is_exe(program):
+                return program
+        else:
+            for path in os.environ["PATH"].split(os.pathsep):
+                exe_file = os.path.join(path, program)
+                if self._is_exe(exe_file):
+                    return exe_file
+
+    def _mispriming(self):
+        self.params['PRIMER_MISPRIMING_LIBRARY']        = 'misprime_lib_weight'
+        self.params['PRIMER_MAX_MISPRIMING']            = 7.00
+    
+    def _basic(self):
+        # basic parameters for primer checking
+        self.params['PRIMER_TM_SANTALUCIA']             = 1     # boolean
+        self.params['PRIMER_SALT_CONC']                 = 50.0  # mM
+        self.params['PRIMER_DIVALENT_CONC']             = 1.5   # mM
+        self.params['PRIMER_SALT_CORRECTIONS']          = 1     # boolean
+        self.params['PRIMER_DNTP_CONC']                 = 0.125 # mM
+        self.params['PRIMER_THERMODYNAMIC_ALIGNMENT']   = 1
+        self.params['PRIMER_THERMODYNAMIC_PARAMETERS_PATH']    = os.path.join(os.path.dirname(self._which('primer3_core')), 'primer3_config/')
+        self.params['PRIMER_MAX_POLY_X']                = 3     # nt
+        self.params['PRIMER_EXPLAIN_FLAG']              = 1     # boolean
+    
+    def basic(self, mispriming=False, **kwargs):
+        self._basic()
+        self.params['PRIMER_PRODUCT_SIZE_RANGE']        = '150-450'
+        self.params['PRIMER_MIN_TM']                    = 57.   # deg C
+        self.params['PRIMER_MAX_TM']                    = 62.   # deg C
+        self.params['PRIMER_OPT_TM']                    = 60.   # deg C
+        self.params['PRIMER_MAX_DIFF_TM']               = 5.    # deg C
+        self.params['PRIMER_OPT_SIZE']                  = 19    # nt
+        self.params['PRIMER_MIN_SIZE']                  = 16    # nt
+        self.params['PRIMER_MIN_GC']                    = 30.0  # percent
+        self.params['PRIMER_OPT_GC_PERCENT']            = 50.0  # percent
+        self.params['PRIMER_MAX_GC']                    = 70.0  # percent
+        self.params['PRIMER_GC_CLAMP']                  = 1     # boolean
+        self.params['PRIMER_MAX_SELF_ANY_TH']           = 45.   # deg C
+        self.params['PRIMER_PAIR_MAX_COMPL_ANY_TH']     = 45.   # deg C
+        self.params['PRIMER_MAX_SELF_END_TH']           = 40.   # deg C
+        self.params['PRIMER_PAIR_MAX_COMPL_END_TH']     = 40.   # deg C
+        self.params['PRIMER_MAX_HAIRPIN']               = 24.   # deg C
+        self.params['PRIMER_PAIR_MAX_HAIRPIN']          = 24.   # deg C
+        self.params['PRIMER_MAX_END_STABILITY']         = 8.0   # delta G
+        self.params['PRIMER_LOWERCASE_MASKING']         = 1     # avoids 3' mask
+        self.params['PRIMER_NUM_RETURN']                = 4     # count
+        if mispriming:
+            self.mispriming()
+        for k,v in kwargs.iteritems():
+            self.params[k]                              = v
+    
+    def reduced(self, mispriming=False, **kwargs):
+        self._basic()
+        if mispriming:
+            self.mispriming()
+        for k,v in kwargs.iteritems():
+            self.params[k]                              = v
+    
+    def manual(self, **kwargs):
+        for k,v in kwargs.iteritems():
+            self.params[k]                              = v
+    
+    def remove(self, item):
+        '''removes and item from default parameters'''
+        self.params.popitem(item)
+    
+    def clear(self):
+        '''clears all default parameters'''
+        self.params.clear()
+        
+    def parameter(self, key, value):
+        '''reset or substitute default primer3 parameters'''
+        self.params[key] = value
+            
+class Primers:                            
+    def __init__(self):
+    #def __init__(self, design, **kwargs):
+        #self.design = design
+        #self._locals(self.design, **kwargs)
+        pass
+    
+    def _locals(self, obj, **kwargs):
+        if ('left_primer' and 'right_primer') not in kwargs.keys() and 'sequence' not in kwargs.keys():
+            raise ValueError('You must provide a template sequence or primers to test')
+        obj.params['SEQUENCE_ID']              = kwargs['name']
+        if 'sequence' in kwargs.keys():
+            obj.params['SEQUENCE_TEMPLATE']    = kwargs['sequence']
+            obj.params['SEQUENCE_TARGET']      = kwargs['target']
+            if 'quality' in kwargs.keys():
+                obj.params['SEQUENCE_QUALITY'] = kwargs['quality']
+            if 'excluded' in kwargs.keys():
+                obj.params['SEQUENCE_EXCLUDED_REGION'] = kwargs['excluded']
+        elif 'left_primer' and 'right_primer' in kwargs.keys():
+            obj.params['PRIMER_TASK'] = 'check_primers'
+            obj.params['SEQUENCE_PRIMER'] = kwargs['left_primer']
+            obj.params['SEQUENCE_PRIMER_REVCOMP'] = kwargs['right_primer']
+        self._create_temp_file(obj) 
+    
+    def _create_temp_file(self, obj):
+        '''create the temporary input file for use by the primer3 binary'''
+        self.tf = tempfile.mkstemp(prefix='primer-%s-' % \
+        obj.params['SEQUENCE_ID'], suffix='.tmp', dir=obj.td)
+        tfh = open(self.tf[1], 'w')
+        for k,v in obj.params.iteritems():
+            tfh.write('%s=%s\n' % (k, v))
+        tfh.write('=')
+        tfh.close()
+    
+    def _rm_temp_file(self):
+        '''remove the temporary files area following primer design'''
+        os.remove(self.tf[1])
+        #os.rmdir(self.td)
+    
+    def _common(self, tag, primer):
+        '''checks primer and tag for common bases and removes them'''
+        common, index = False, None
+        for i in range(1,len(primer)):
+            frag = primer[0:i]
+            if tag.endswith(frag):
+                index = i
+        if index:
+            tag = tag[:-index]
+            common = True
+        else:
+            tag = tag
+        # not sure why this is needed
+        return common, tag
+    
+    def _revcomp(self, seq):
+        '''Return reverse complement of seq'''
+        bases = string.maketrans('AGCTagct','TCGAtcga')
+        # translate it, reverse, return
+        return seq.translate(bases)[::-1]
+    
+    def _p_design(self, delete = True):
+        '''call primer3 and feed it our temporary design file'''
+        # create the tempfile to hold our design.  this allows changes up to 
+        # this point.
+        stdout, self.stderr=subprocess.Popen(('primer3_core %s' % self.tf[1]), \
+        shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, \
+        universal_newlines=True).communicate()
+        if not self.stderr and stdout:
+            primers = {}
+            stdout = stdout.split('\n')
+            for l in stdout:
+                try:
+                    name, val = l.split('=')
+                    if name in ['PRIMER_LEFT_EXPLAIN', 
+                    'PRIMER_RIGHT_EXPLAIN', 'PRIMER_PAIR_EXPLAIN']:
+                        if 'metadata' not in primers.keys():
+                            primers['metadata'] = {name:val}
+                        else:
+                            primers['metadata'][name] = val
+                    else:
+                        k = int(name.split('_')[2])
+                        name = name.replace(('_%s') % k, '')
+                        if k not in primers.keys():
+                            primers[k] = {name:val}
+                        else:
+                            primers[k][name] = val
+                except:
+                    pass
+        else:
+            primers = None
+        # delete the temporary directory and files
+        if delete:
+            self._rm_temp_file()
+        return primers
+    
+    
+    def _best(self):
+        '''select the best tagged primer from the group, and screen it to 
+        ensure that it is still within normal spec for complementarity'''
+        low_penalty = None
+        for k,v in self.tagged_primers.iteritems():
+            if not low_penalty:
+                low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
+            elif v['PRIMER_PAIR_PENALTY'] < low_penalty[1]:
+                low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
+        self.tagged_best = self.tagged_primers[low_penalty[0]]
+        self.tagged_best_untagged_id = low_penalty[0].split('_')[0]
+        min_qual = {'PRIMER_PAIR_COMPL_ANY_TH':45.,
+        'PRIMER_PAIR_COMPL_END_TH':45.,
+        'PRIMER_RIGHT_HAIRPIN_TH':24.,
+        'PRIMER_LEFT_HAIRPIN_TH':24.,
+        'PRIMER_LEFT_SELF_ANY_TH':45.,
+        'PRIMER_RIGHT_SELF_ANY_TH':45.,
+        'PRIMER_LEFT_SELF_END_TH':40., 
+        'PRIMER_RIGHT_SELF_END_TH':40.}
+        for k,v in min_qual.iteritems():
+            if self.tagged_best[k] >= v:
+                self.tagged_best_okay = True
+            else:
+                self.tagged_best_okay = False
+        #pdb.set_trace()
+    
+    def pick(self, design, **kwargs):
+        '''pick primers given settings'''
+        self.design = design
+        self._locals(self.design, **kwargs)
+        self.primers = self._p_design()      
+    
+    def tag(self, tagging, delete=True, **kwargs):
+        '''tag and check newly designed primers'''
+        self.tagging = tagging
+        self.tagged_primers = {}
+        #pdb.set_trace()
+        primers = self.primers.keys()
+        primers.remove('metadata')
+        for p in primers:
+            for ts in kwargs:
+                for s in xrange(2):
+                    if s == 0:
+                        self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_LEFT_SEQUENCE'])
+                        l_tagged = self.tagged_tag + self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                        r_untagged = self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                        # reinitialize with reduced set of Primer3Params
+                        self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='tagging')
+                        k = '%s_%s_%s' % (p, ts, 'f')
+                        self.tagged_primers[k] = self._p_design()[0]
+                        # cleanup is automatic in _p_design
+                    else:
+                        l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                        self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
+                        r_tagged = self.tagged_tag + self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                        # reinitialize with reduced set of Primer3Params
+                        self._locals(self.tagging, left_primer=l_untagged, right_primer=r_tagged, name='tagging')
+                        k = '%s_%s_%s' % (p, ts, 'r')
+                        self.tagged_primers[k] = self._p_design()[0]
+        self._best()
+
+class Primer3Tests(unittest.TestCase):
+    def setUp(self):
+        self.seq = "TAAAATGATTAACTGCTGCATACAGCTATGACTTTATTTGTAAGGAGCAG\
+TTAGGAGAGGCAAAATGAGTATGCAGCTTTCCATTATATACAGGCATATTTTCAATAGCCGTGTGAGTCTT\
+TTTATGGCTCCATTTATGTCAATGTCCTAGTGTCATCTGTAATAAACTGGCAGCAATTAGAGCCACAATAA\
+ACCCCATAATGCAACACAAACAACAGGAAGTCTCCCAGTACCCCAACGCTCTAAATTTACATCTCCCCTTC\
+GAAAGTCTATTTATCACCAGAGTTTGCAAGCCCGTCTGCTAAAGAGCGCTCTAATTAAGATGTATCTGGTG\
+AACAAGTGTCTGCTTTTCACCCTACTCTTTTAACATATCATGTATGCACTGAGCAATCTTCGTCGGGTCTC\
+ATAATGAGAAAACTGTGATATGCAAAAACTCTGTGAAATCTTTTATCCTCCCAGGAGACCTCCCTTGATGC\
+CAGGCATTCATCATCTAGCCTCTAATATCAGTTATTTTGTGCCTCCTCTGCTTACA"
+        self.static_results = {'PRIMER_LEFT_SELF_END_TH': '0.00', 'PRIMER_PAIR_COMPL_ANY_TH': '0.00', 'PRIMER_RIGHT_PENALTY': '0.307605', 'PRIMER_RIGHT_GC_PERCENT': '52.632', 'PRIMER_LEFT_HAIRPIN_TH': '0.00', 'PRIMER_LEFT': '41,19', 'PRIMER_PAIR_COMPL_END_TH': '0.00', 'PRIMER_LEFT_PENALTY': '0.663820', 'PRIMER_PAIR_PRODUCT_SIZE': '190', 'PRIMER_LEFT_END_STABILITY': '7.9000', 'PRIMER_LEFT_TM': '59.336', 'PRIMER_PAIR_PENALTY': '0.971425', 'PRIMER_RIGHT_HAIRPIN_TH': '40.16', 'PRIMER_RIGHT_SELF_ANY_TH': '0.00', 'PRIMER_LEFT_GC_PERCENT': '52.632', 'PRIMER_LEFT_SELF_ANY_TH': '0.00', 'PRIMER_RIGHT_END_STABILITY': '7.0000', 'PRIMER_RIGHT_SEQUENCE': 'ACTGGGAGACTTCCTGTTG', 'PRIMER_RIGHT_SELF_END_TH': '0.00', 'PRIMER_LEFT_SEQUENCE': 'AAGGAGCAGTTAGGAGAGG', 'PRIMER_RIGHT': '230,19', 'PRIMER_RIGHT_TM': '59.692'}
+        self.basic_settings = {'PRIMER_MAX_SELF_ANY_TH': 45.0, 'PRIMER_MAX_SELF_END_TH': 40.0, 'PRIMER_MIN_GC': 30.0, 'PRIMER_OPT_SIZE': 19, 'PRIMER_MIN_TM': 57.0, 'PRIMER_MIN_SIZE': 16, 'PRIMER_MAX_END_STABILITY': 8.0, 'PRIMER_OPT_GC_PERCENT': 50.0, 'PRIMER_PAIR_MAX_COMPL_END_TH': 40.0, 'PRIMER_SALT_CONC': 50.0, 'PRIMER_NUM_RETURN': 4, 'PRIMER_PRODUCT_SIZE_RANGE': '150-450', 'PRIMER_MAX_TM': 62.0, 'PRIMER_DNTP_CONC': 0.125, 'PRIMER_THERMODYNAMIC_ALIGNMENT': 1, 'PRIMER_MAX_HAIRPIN': 24.0, 'PRIMER_MAX_POLY_X': 3, 'PRIMER_PAIR_MAX_COMPL_ANY_TH': 45.0, 'PRIMER_MAX_GC': 70.0, 'PRIMER_TM_SANTALUCIA': 1, 'PRIMER_SALT_CORRECTIONS': 1, 'PRIMER_THERMODYNAMIC_PARAMETERS_PATH': '/usr/local/bin/primer3_config/', 'PRIMER_OPT_TM': 60.0, 'PRIMER_MAX_DIFF_TM': 5.0, 'PRIMER_GC_CLAMP': 1, 'PRIMER_DIVALENT_CONC': 1.5, 'PRIMER_PAIR_MAX_HAIRPIN': 24.0, 'PRIMER_EXPLAIN_FLAG': 1, 'PRIMER_LOWERCASE_MASKING': 1}
+        self.reduced_settings = {'PRIMER_THERMODYNAMIC_ALIGNMENT': 1, 'PRIMER_MAX_POLY_X': 3, 'PRIMER_TM_SANTALUCIA': 1, 'PRIMER_SALT_CORRECTIONS': 1, 'PRIMER_DIVALENT_CONC': 1.5, 'PRIMER_SALT_CONC': 50.0, 'PRIMER_THERMODYNAMIC_PARAMETERS_PATH': '/usr/local/bin/primer3_config/', 'PRIMER_EXPLAIN_FLAG': 1, 'PRIMER_DNTP_CONC': 0.125}
+    
+    def testReducedParams(self):
+        '''Ensure that we retrieve the reduced set of design parameters'''
+        #pdb.set_trace()
+        self.settings = Settings()
+        self.settings.reduced()
+        self.assertEqual(self.settings.params, self.reduced_settings)
+
+    def testFullParams(self):
+        '''Ensure that we retrieve the full set of design parameters'''
+        #pdb.set_trace()
+        self.settings = Settings()
+        self.settings.basic()
+        self.assertEqual(self.settings.params, self.basic_settings)
+        
+    def testPrimerDesign(self):
+        '''Ensure that we are designing primers with the same resulting
+        parameters as previous attempts'''
+        #pdb.set_trace()
+        self.settings = Settings()
+        self.settings.basic()
+        self.primer3 = Primers()
+        self.primer3.pick(self.settings, sequence=self.seq, target='100,100', name = 'primer_design')
+        self.assertEqual(self.primer3.primers[0], self.static_results)
+        
+    def testTagging(self):
+        '''Test tagging functionality'''
+        #pdb.set_trace()
+        self.settings = Settings()
+        self.settings.basic()
+        self.primers = Primers()
+        self.primers.pick(self.settings, sequence=self.seq, target='100,100', name = 'primer_design')
+        self.tag_settings = Settings()
+        self.tag_settings.reduced(PRIMER_PICK_ANYWAY=1)
+        self.primers.tag(self.tag_settings, cag='CAGTGCGAAGG')
+        self.assertEqual(self.primers.tagged_best['PRIMER_PAIR_PENALTY'], str(19.607853))
+        pdb.set_trace()
+        self.assert_(self.primers.tagged_best['PRIMER_LEFT_SEQUENCE'].startswith('CAGTGCGAAGG'))
+        self.assert_(self.primers.tagged_best['PRIMER_PAIR_COMPL_ANY_TH'], str(45.))
+        self.assert_(self.primers.tagged_best['PRIMER_PAIR_COMPL_END_TH'], str(45.))
+        self.assert_(self.primers.tagged_best['PRIMER_LEFT_SELF_ANY_TH'], str(45.))
+        self.assert_(self.primers.tagged_best['PRIMER_RIGHT_SELF_ANY_TH'], str(45.))
+        self.assert_(self.primers.tagged_best['PRIMER_LEFT_SELF_END_TH'], str(40.))
+        self.assert_(self.primers.tagged_best['PRIMER_RIGHT_SELF_END_TH'], str(40.))
+        self.assert_(self.primers.tagged_best['PRIMER_RIGHT_HAIRPIN_TH'], str(24.))
+        self.assert_(self.primers.tagged_best['PRIMER_LEFT_HAIRPIN_TH'], str(24.))
+         
+
+if __name__ == '__main__':
+    unittest.main()
