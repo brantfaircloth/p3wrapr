@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-primer3.py
+primer.py
 
 Created by Brant Faircloth on 2009-10-31.
 Copyright (c) 2009 Brant Faircloth. All rights reserved.
