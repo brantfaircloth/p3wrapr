@@ -14,6 +14,7 @@ somewhere on the system path.  I've used /usr/local/bin for both.
 import sys
 import os
 import pdb
+import copy
 import shutil
 import string
 import tempfile
@@ -124,28 +125,35 @@ class Primers:
         pass
     
     def _locals(self, obj, **kwargs):
-        if ('left_primer' and 'right_primer') not in kwargs.keys() and 'sequence' not in kwargs.keys():
-            raise ValueError('You must provide a template sequence or primers to test')
-        obj.params['SEQUENCE_ID']              = kwargs['name']
+        #if ('left_primer' and 'right_primer') not in kwargs.keys() and 'sequence' not in kwargs.keys():
+        #    raise ValueError('You must provide a template sequence or primers to test')
+        od = copy.deepcopy(obj.params)
+        od['SEQUENCE_ID']              = kwargs['name']
         if 'sequence' in kwargs.keys():
-            obj.params['SEQUENCE_TEMPLATE']    = kwargs['sequence']
-            obj.params['SEQUENCE_TARGET']      = kwargs['target']
+            od['SEQUENCE_TEMPLATE']    = kwargs['sequence']
+            od['SEQUENCE_TARGET']      = kwargs['target']
             if 'quality' in kwargs.keys():
-                obj.params['SEQUENCE_QUALITY'] = kwargs['quality']
+                od['SEQUENCE_QUALITY'] = kwargs['quality']
             if 'excluded' in kwargs.keys():
-                obj.params['SEQUENCE_EXCLUDED_REGION'] = kwargs['excluded']
-        elif 'left_primer' and 'right_primer' in kwargs.keys():
-            obj.params['PRIMER_TASK'] = 'check_primers'
-            obj.params['SEQUENCE_PRIMER'] = kwargs['left_primer']
-            obj.params['SEQUENCE_PRIMER_REVCOMP'] = kwargs['right_primer']
-        self._create_temp_file(obj) 
+                od['SEQUENCE_EXCLUDED_REGION'] = kwargs['excluded']
+        elif 'left_primer' in kwargs.keys() and 'right_primer' in kwargs.keys():
+            od['PRIMER_TASK'] = 'check_primers'
+            od['SEQUENCE_PRIMER'] = kwargs['left_primer']
+            od['SEQUENCE_PRIMER_REVCOMP'] = kwargs['right_primer']
+        elif 'left_primer' in kwargs.keys():
+            od['PRIMER_TASK'] = 'check_primers'
+            od['SEQUENCE_PRIMER'] = kwargs['left_primer']
+        elif 'right_primer' in kwargs.keys():
+            od['PRIMER_TASK'] = 'check_primers'
+            od['SEQUENCE_PRIMER_REVCOMP'] = kwargs['right_primer']
+        self._create_temp_file(od, obj.td) 
     
-    def _create_temp_file(self, obj):
+    def _create_temp_file(self, od, td):
         '''create the temporary input file for use by the primer3 binary'''
         self.tf = tempfile.mkstemp(prefix='primer-%s-' % \
-        obj.params['SEQUENCE_ID'], suffix='.tmp', dir=obj.td)
+        od['SEQUENCE_ID'], suffix='.tmp', dir=td)
         tfh = open(self.tf[1], 'w')
-        for k,v in obj.params.iteritems():
+        for k,v in od.iteritems():
             tfh.write('%s=%s\n' % (k, v))
         tfh.write('=')
         tfh.close()
@@ -257,6 +265,7 @@ class Primers:
         '''select the best tagged probe from the group, and screen it to 
         ensure that it is still within normal spec for complementarity'''
         low_penalty = {}
+        pdb.set_trace()
         for k,v in self.tagged_primers.iteritems():
             s = k.split('_')[2]
             if s not in low_penalty.keys():
@@ -342,26 +351,27 @@ class Primers:
                 for ts in kwargs:
                     for s in xrange(2):
                         if s == 0:
-                            #pdb.set_trace()
+                            pdb.set_trace()
                             c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_LEFT_SEQUENCE'])
                             self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
                             l_tagged = self.tagged_tag + c_p
-                            r_untagged = self.primers[p]['PRIMER_RIGHT_SEQUENCE']
                             # reinitialize with reduced set of Primer3Params
-                            self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='probe')
+                            #pdb.set_trace()                            
+                            self._locals(self.tagging, left_primer=l_tagged, name='probe')
                             k = '%s_%s_%s' % (p, ts, 'f')
-                            self.tagged_primers[k] = self._p_design()[0]
+                            self.tagged_primers[k] = self._p_design()
                             # cleanup is automatic in _p_design
+                            #self.tagging.params = None
                         else:
-                            l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
                             c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
                             self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
                             r_tagged = self.tagged_tag + c_p
                             # reinitialize with reduced set of Primer3Params
-                            self._locals(self.tagging, left_primer=l_untagged, right_primer=r_tagged, name='probe')
+                            self._locals(self.tagging, right_primer=r_tagged, name='probe')
                             k = '%s_%s_%s' % (p, ts, 'r')
                             #pdb.set_trace()
-                            self.tagged_primers[k] = self._p_design()[0]
+                            self.tagged_primers[k] = self._p_design()
+                            #self.tagging.params = None
             #pdb.set_trace()
             self._bestprobe()
         else:
