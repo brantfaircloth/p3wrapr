@@ -149,6 +149,7 @@ class Primers:
             tfh.write('%s=%s\n' % (k, v))
         tfh.write('=')
         tfh.close()
+        #pdb.set_trace()
     
     def _rm_temp_file(self):
         '''remove the temporary files area following primer design'''
@@ -170,6 +171,12 @@ class Primers:
         # not sure why this is needed
         return common, tag
     
+    def _complement(self, seq):
+        '''Return complement of seq'''
+        bases = string.maketrans('AGCTagct','TCGAtcga')
+        # translate it, reverse, return
+        return seq.translate(bases)
+    
     def _revcomp(self, seq):
         '''Return reverse complement of seq'''
         bases = string.maketrans('AGCTagct','TCGAtcga')
@@ -178,17 +185,24 @@ class Primers:
     
     def _p_design(self, delete = True):
         '''call primer3 and feed it our temporary design file'''
-        # create the tempfile to hold our design.  this allows changes up to 
-        # this point.
-        stdout, self.stderr=subprocess.Popen(('primer3_core %s' % self.tf[1]), \
-        shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, \
-        universal_newlines=True).communicate()
+        stdout, self.stderr = subprocess.Popen('primer3_core %s' % self.tf[1],\
+        shell=True, stdout=subprocess.PIPE, stdin=None, \
+        stderr=subprocess.PIPE, universal_newlines=True).communicate()
+        # make sure that we close the stupid ass input file or we're going
+        # to get the damn ValueError: filedescriptor out of range in select()
+        # or OSError: [Errno 24] Too many open files
+        os.close(self.tf[0])
+        #pdb.set_trace()
         if not self.stderr and stdout:
             primers = {}
             stdout = stdout.split('\n')
             for l in stdout:
                 try:
                     name, val = l.split('=')
+                    try:
+                        val = float(val)
+                    except:
+                        pass
                     if name in ['PRIMER_LEFT_EXPLAIN', 
                     'PRIMER_RIGHT_EXPLAIN', 'PRIMER_PAIR_EXPLAIN']:
                         if 'metadata' not in primers.keys():
@@ -206,6 +220,7 @@ class Primers:
                     pass
         else:
             primers = None
+        #pdb.set_trace()
         # delete the temporary directory and files
         if delete:
             self._rm_temp_file()
@@ -222,7 +237,7 @@ class Primers:
             elif v['PRIMER_PAIR_PENALTY'] < low_penalty[1]:
                 low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
         self.tagged_best = self.tagged_primers[low_penalty[0]]
-        self.tagged_best_untagged_id = low_penalty[0].split('_')[0]
+        self.tagged_id = low_penalty[0].split('_')[0]
         min_qual = {'PRIMER_PAIR_COMPL_ANY_TH':45.,
         'PRIMER_PAIR_COMPL_END_TH':45.,
         'PRIMER_RIGHT_HAIRPIN_TH':24.,
@@ -232,46 +247,127 @@ class Primers:
         'PRIMER_LEFT_SELF_END_TH':40., 
         'PRIMER_RIGHT_SELF_END_TH':40.}
         for k,v in min_qual.iteritems():
-            if self.tagged_best[k] >= v:
+            if self.tagged_best[k] <= v:
                 self.tagged_best_okay = True
             else:
                 self.tagged_best_okay = False
         #pdb.set_trace()
     
+    def _bestprobe(self):
+        '''select the best tagged probe from the group, and screen it to 
+        ensure that it is still within normal spec for complementarity'''
+        low_penalty = {}
+        for k,v in self.tagged_primers.iteritems():
+            s = k.split('_')[2]
+            if s not in low_penalty.keys():
+                low_penalty[s] = (k,v['PRIMER_PAIR_PENALTY'])
+            elif v['PRIMER_PAIR_PENALTY'] < low_penalty[s][1]:
+                low_penalty[s] = (k,v['PRIMER_PAIR_PENALTY'])
+        #pdb.set_trace()
+        self.tagged_best = {}
+        self.tagged_best['f'] = self.tagged_primers[low_penalty['f'][0]]
+        self.tagged_best['r'] = self.tagged_primers[low_penalty['r'][0]]
+        self.tagged_id = {}
+        self.tagged_id['f'] = low_penalty['f'][0].split('_')[0]
+        self.tagged_id['r'] = low_penalty['r'][0].split('_')[0]
+        min_qual = {'f':{'PRIMER_LEFT_HAIRPIN_TH':24.,
+        'PRIMER_LEFT_SELF_ANY_TH':45.,
+        'PRIMER_LEFT_SELF_END_TH':40.}, 
+        'r':{'PRIMER_RIGHT_HAIRPIN_TH':24.,
+        'PRIMER_RIGHT_SELF_ANY_TH':45., 
+        'PRIMER_RIGHT_SELF_END_TH':40.}}
+        self.tagged_best_okay = {}
+        for k,v in min_qual.iteritems():
+            for j,c in v.iteritems():
+                if self.tagged_best[k][j] <= c:
+                    self.tagged_best_okay[k] = True
+                else:
+                    self.tagged_best_okay[k] = False
+        pdb.set_trace() 
+    
     def pick(self, design, **kwargs):
         '''pick primers given settings'''
         self.design = design
         self._locals(self.design, **kwargs)
-        self.primers = self._p_design()      
+        self.primers = self._p_design()
+        if 0 in self.primers.keys():
+            self.primers_designed = True
+        else:
+            self.primers_designed = False      
     
     def tag(self, tagging, delete=True, **kwargs):
         '''tag and check newly designed primers'''
-        self.tagging = tagging
-        self.tagged_primers = {}
-        #pdb.set_trace()
-        primers = self.primers.keys()
-        primers.remove('metadata')
-        for p in primers:
-            for ts in kwargs:
-                for s in xrange(2):
-                    if s == 0:
-                        self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_LEFT_SEQUENCE'])
-                        l_tagged = self.tagged_tag + self.primers[p]['PRIMER_LEFT_SEQUENCE']
-                        r_untagged = self.primers[p]['PRIMER_RIGHT_SEQUENCE']
-                        # reinitialize with reduced set of Primer3Params
-                        self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='tagging')
-                        k = '%s_%s_%s' % (p, ts, 'f')
-                        self.tagged_primers[k] = self._p_design()[0]
-                        # cleanup is automatic in _p_design
-                    else:
-                        l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
-                        self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
-                        r_tagged = self.tagged_tag + self.primers[p]['PRIMER_RIGHT_SEQUENCE']
-                        # reinitialize with reduced set of Primer3Params
-                        self._locals(self.tagging, left_primer=l_untagged, right_primer=r_tagged, name='tagging')
-                        k = '%s_%s_%s' % (p, ts, 'r')
-                        self.tagged_primers[k] = self._p_design()[0]
-        self._best()
+        if self.primers_designed:
+            self.tagging = tagging
+            self.tagged_primers = {}
+            #pdb.set_trace()
+            primers = self.primers.keys()
+            primers.remove('metadata')
+            for p in primers:
+                for ts in kwargs:
+                    for s in xrange(2):
+                        if s == 0:
+                            self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_LEFT_SEQUENCE'])
+                            l_tagged = self.tagged_tag + self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                            r_untagged = self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                            # reinitialize with reduced set of Primer3Params
+                            self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='tagging')
+                            k = '%s_%s_%s' % (p, ts, 'f')
+                            self.tagged_primers[k] = self._p_design()[0]
+                            # cleanup is automatic in _p_design
+                        else:
+                            l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                            self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
+                            r_tagged = self.tagged_tag + self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                            # reinitialize with reduced set of Primer3Params
+                            self._locals(self.tagging, left_primer=l_untagged, right_primer=r_tagged, name='tagging')
+                            k = '%s_%s_%s' % (p, ts, 'r')
+                            #pdb.set_trace()
+                            self.tagged_primers[k] = self._p_design()[0]
+            self._best()
+        else:
+            self.tagged_primers = None
+            self.tagged_best = None
+    
+            
+    def probe(self, tagging, delete=True, **kwargs):
+        '''tag and check newly designed primers'''
+        if self.primers_designed:
+            self.tagging = tagging
+            self.tagged_primers = {}
+            #pdb.set_trace()
+            primers = self.primers.keys()
+            primers.remove('metadata')
+            for p in primers:
+                for ts in kwargs:
+                    for s in xrange(2):
+                        if s == 0:
+                            #pdb.set_trace()
+                            c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_LEFT_SEQUENCE'])
+                            self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
+                            l_tagged = self.tagged_tag + c_p
+                            r_untagged = self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                            # reinitialize with reduced set of Primer3Params
+                            self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='probe')
+                            k = '%s_%s_%s' % (p, ts, 'f')
+                            self.tagged_primers[k] = self._p_design()[0]
+                            # cleanup is automatic in _p_design
+                        else:
+                            l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                            c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
+                            self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
+                            r_tagged = self.tagged_tag + c_p
+                            # reinitialize with reduced set of Primer3Params
+                            self._locals(self.tagging, left_primer=l_untagged, right_primer=r_tagged, name='probe')
+                            k = '%s_%s_%s' % (p, ts, 'r')
+                            #pdb.set_trace()
+                            self.tagged_primers[k] = self._p_design()[0]
+            #pdb.set_trace()
+            self._bestprobe()
+        else:
+            self.tagged_primers = None
+            self.tagged_best = None
+    
 
 class Primer3Tests(unittest.TestCase):
     def setUp(self):
