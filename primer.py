@@ -178,6 +178,7 @@ class Primers:
             tag = tag
         # not sure why this is needed
         return common, tag
+        
     
     def _complement(self, seq):
         '''Return complement of seq'''
@@ -245,7 +246,7 @@ class Primers:
             elif v['PRIMER_PAIR_PENALTY'] < low_penalty[1]:
                 low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
         self.tagged_best = self.tagged_primers[low_penalty[0]]
-        self.tagged_id = low_penalty[0].split('_')[0]
+        self.tagged_best_id = low_penalty[0].split('_')[0]
         min_qual = {'PRIMER_PAIR_COMPL_ANY_TH':45.,
         'PRIMER_PAIR_COMPL_END_TH':45.,
         'PRIMER_RIGHT_HAIRPIN_TH':24.,
@@ -259,40 +260,47 @@ class Primers:
                 self.tagged_best_okay = True
             else:
                 self.tagged_best_okay = False
+                break
         #pdb.set_trace()
     
     def _bestprobe(self):
         '''select the best tagged probe from the group, and screen it to 
         ensure that it is still within normal spec for complementarity'''
         low_penalty = {}
-        pdb.set_trace()
+        # TODO:  modify this to consider only complementarity measures?
         for k,v in self.tagged_primers.iteritems():
             s = k.split('_')[2]
+            if s == 'f':
+                keyname = 'PRIMER_LEFT_HAIRPIN_TH'
+            else:
+                keyname = 'PRIMER_RIGHT_HAIRPIN_TH'
             if s not in low_penalty.keys():
-                low_penalty[s] = (k,v['PRIMER_PAIR_PENALTY'])
-            elif v['PRIMER_PAIR_PENALTY'] < low_penalty[s][1]:
-                low_penalty[s] = (k,v['PRIMER_PAIR_PENALTY'])
+                low_penalty[s] = (k,v[keyname])
+            elif v[keyname] < low_penalty[s][1]:
+                low_penalty[s] = (k,v[keyname])
         #pdb.set_trace()
         self.tagged_best = {}
         self.tagged_best['f'] = self.tagged_primers[low_penalty['f'][0]]
         self.tagged_best['r'] = self.tagged_primers[low_penalty['r'][0]]
-        self.tagged_id = {}
-        self.tagged_id['f'] = low_penalty['f'][0].split('_')[0]
-        self.tagged_id['r'] = low_penalty['r'][0].split('_')[0]
-        min_qual = {'f':{'PRIMER_LEFT_HAIRPIN_TH':24.,
+        self.tagged_best_id = {}
+        self.tagged_best_id['f'] = low_penalty['f'][0].split('_')[0]
+        self.tagged_best_id['r'] = low_penalty['r'][0].split('_')[0]
+        min_qual = {'f':{'PRIMER_LEFT_HAIRPIN_TH':45.,
         'PRIMER_LEFT_SELF_ANY_TH':45.,
         'PRIMER_LEFT_SELF_END_TH':40.}, 
-        'r':{'PRIMER_RIGHT_HAIRPIN_TH':24.,
+        'r':{'PRIMER_RIGHT_HAIRPIN_TH':45.,
         'PRIMER_RIGHT_SELF_ANY_TH':45., 
         'PRIMER_RIGHT_SELF_END_TH':40.}}
         self.tagged_best_okay = {}
+        #pdb.set_trace()
         for k,v in min_qual.iteritems():
             for j,c in v.iteritems():
                 if self.tagged_best[k][j] <= c:
                     self.tagged_best_okay[k] = True
                 else:
                     self.tagged_best_okay[k] = False
-        pdb.set_trace() 
+                    break
+        #pdb.set_trace() 
     
     def pick(self, design, **kwargs):
         '''pick primers given settings'''
@@ -351,29 +359,32 @@ class Primers:
                 for ts in kwargs:
                     for s in xrange(2):
                         if s == 0:
-                            pdb.set_trace()
+                            #pdb.set_trace()
                             c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_LEFT_SEQUENCE'])
                             self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
                             l_tagged = self.tagged_tag + c_p
+                            # reverse
+                            l_tagged = l_tagged[::-1]
                             # reinitialize with reduced set of Primer3Params
                             #pdb.set_trace()                            
                             self._locals(self.tagging, left_primer=l_tagged, name='probe')
                             k = '%s_%s_%s' % (p, ts, 'f')
-                            self.tagged_primers[k] = self._p_design()
+                            self.tagged_primers[k] = self._p_design()[0]
                             # cleanup is automatic in _p_design
-                            #self.tagging.params = None
                         else:
                             c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
                             self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
                             r_tagged = self.tagged_tag + c_p
+                            # reverse
+                            r_tagged = r_tagged[::-1]
                             # reinitialize with reduced set of Primer3Params
                             self._locals(self.tagging, right_primer=r_tagged, name='probe')
                             k = '%s_%s_%s' % (p, ts, 'r')
                             #pdb.set_trace()
-                            self.tagged_primers[k] = self._p_design()
-                            #self.tagging.params = None
-            #pdb.set_trace()
+                            self.tagged_primers[k] = self._p_design()[0]
+                            # cleanup is automatic in _p_design
             self._bestprobe()
+            #pdb.set_trace()            
         else:
             self.tagged_primers = None
             self.tagged_best = None
