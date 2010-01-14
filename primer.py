@@ -307,7 +307,7 @@ class Primers:
         self.design = design
         self._locals(self.design, **kwargs)
         self.primers = self._p_design()
-        if 0 in self.primers.keys():
+        if self.primers.keys() and 0 in self.primers.keys():
             self.primers_designed = True
         else:
             self.primers_designed = False      
