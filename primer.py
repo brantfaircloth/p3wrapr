@@ -266,14 +266,14 @@ class Primers:
         self.tagged_best    = None
         self.tagged_best_id = None
         low_penalty = None
-        for k,v in self.tagged_good.iteritems():
-            if not low_penalty:
-                low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
-            elif v['PRIMER_PAIR_PENALTY'] < low_penalty[1]:
-                low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
-        self.tagged_best = {low_penalty[0]:self.tagged_primers[low_penalty[0]]}
-        self.tagged_best_id = low_penalty[0].split('_')[0]
-        
+        if self.tagged_good:
+            for k,v in self.tagged_good.iteritems():
+                if not low_penalty:
+                    low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
+                elif v['PRIMER_PAIR_PENALTY'] < low_penalty[1]:
+                    low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
+            self.tagged_best = {low_penalty[0]:self.tagged_primers[low_penalty[0]]}
+            self.tagged_best_id = low_penalty[0]
         #pdb.set_trace()
     
     def _bestprobe(self):
