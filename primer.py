@@ -236,31 +236,44 @@ class Primers:
         return primers
     
     
+    def _good(self):
+        '''select those primers meeting the minimum criteria for usefulness'''
+        self.tagged_good = {}
+        min_qual = {
+            'PRIMER_PAIR_COMPL_ANY_TH':45.,
+            'PRIMER_PAIR_COMPL_END_TH':45.,
+            'PRIMER_RIGHT_HAIRPIN_TH':24.,
+            'PRIMER_LEFT_HAIRPIN_TH':24.,
+            'PRIMER_LEFT_SELF_ANY_TH':45.,
+            'PRIMER_RIGHT_SELF_ANY_TH':45.,
+            'PRIMER_LEFT_SELF_END_TH':40., 
+            'PRIMER_RIGHT_SELF_END_TH':40.
+            }
+        for k,v in self.tagged_primers.iteritems():
+            okay = False
+            for m,q in min_qual.iteritems():
+                if v[m] <= q:
+                    okay = True
+                else:
+                    okay = False
+                    break
+            if okay:
+                self.tagged_good[k] = v
+    
     def _best(self):
         '''select the best tagged primer from the group, and screen it to 
         ensure that it is still within normal spec for complementarity'''
+        self.tagged_best    = None
+        self.tagged_best_id = None
         low_penalty = None
-        for k,v in self.tagged_primers.iteritems():
+        for k,v in self.tagged_good.iteritems():
             if not low_penalty:
                 low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
             elif v['PRIMER_PAIR_PENALTY'] < low_penalty[1]:
                 low_penalty = (k,v['PRIMER_PAIR_PENALTY'])
-        self.tagged_best = self.tagged_primers[low_penalty[0]]
+        self.tagged_best = {low_penalty[0]:self.tagged_primers[low_penalty[0]]}
         self.tagged_best_id = low_penalty[0].split('_')[0]
-        min_qual = {'PRIMER_PAIR_COMPL_ANY_TH':45.,
-        'PRIMER_PAIR_COMPL_END_TH':45.,
-        'PRIMER_RIGHT_HAIRPIN_TH':24.,
-        'PRIMER_LEFT_HAIRPIN_TH':24.,
-        'PRIMER_LEFT_SELF_ANY_TH':45.,
-        'PRIMER_RIGHT_SELF_ANY_TH':45.,
-        'PRIMER_LEFT_SELF_END_TH':40., 
-        'PRIMER_RIGHT_SELF_END_TH':40.}
-        for k,v in min_qual.iteritems():
-            if self.tagged_best[k] <= v:
-                self.tagged_best_okay = True
-            else:
-                self.tagged_best_okay = False
-                break
+        
         #pdb.set_trace()
     
     def _bestprobe(self):
@@ -342,6 +355,7 @@ class Primers:
                                 k = '%s_%s_%s' % (p, ts, 'r')
                                 #pdb.set_trace()
                                 self.tagged_primers[k] = self._p_design()[0]     
+            self._good()
             self._best()
         else:
             self.tagged_primers = None
