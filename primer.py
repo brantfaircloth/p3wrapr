@@ -322,25 +322,26 @@ class Primers:
             primers.remove('metadata')
             for p in primers:
                 for ts in kwargs:
-                    for s in xrange(2):
-                        if s == 0:
-                            self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_LEFT_SEQUENCE'])
-                            l_tagged = self.tagged_tag + self.primers[p]['PRIMER_LEFT_SEQUENCE']
-                            r_untagged = self.primers[p]['PRIMER_RIGHT_SEQUENCE']
-                            # reinitialize with reduced set of Primer3Params
-                            self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='tagging')
-                            k = '%s_%s_%s' % (p, ts, 'f')
-                            self.tagged_primers[k] = self._p_design()[0]
-                            # cleanup is automatic in _p_design
-                        else:
-                            l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
-                            self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
-                            r_tagged = self.tagged_tag + self.primers[p]['PRIMER_RIGHT_SEQUENCE']
-                            # reinitialize with reduced set of Primer3Params
-                            self._locals(self.tagging, left_primer=l_untagged, right_primer=r_tagged, name='tagging')
-                            k = '%s_%s_%s' % (p, ts, 'r')
-                            #pdb.set_trace()
-                            self.tagged_primers[k] = self._p_design()[0]
+                    if kwargs[ts]:
+                        for s in xrange(2):
+                            if s == 0:
+                                self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_LEFT_SEQUENCE'])
+                                l_tagged = self.tagged_tag + self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                                r_untagged = self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                                # reinitialize with reduced set of Primer3Params
+                                self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='tagging')
+                                k = '%s_%s_%s' % (p, ts, 'f')
+                                self.tagged_primers[k] = self._p_design()[0]
+                                # cleanup is automatic in _p_design
+                            else:
+                                l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                                self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
+                                r_tagged = self.tagged_tag + self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                                # reinitialize with reduced set of Primer3Params
+                                self._locals(self.tagging, left_primer=l_untagged, right_primer=r_tagged, name='tagging')
+                                k = '%s_%s_%s' % (p, ts, 'r')
+                                #pdb.set_trace()
+                                self.tagged_primers[k] = self._p_design()[0]     
             self._best()
         else:
             self.tagged_primers = None
@@ -357,32 +358,33 @@ class Primers:
             primers.remove('metadata')
             for p in primers:
                 for ts in kwargs:
-                    for s in xrange(2):
-                        if s == 0:
-                            #pdb.set_trace()
-                            c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_LEFT_SEQUENCE'])
-                            self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
-                            l_tagged = self.tagged_tag + c_p
-                            # reverse
-                            l_tagged = l_tagged[::-1]
-                            # reinitialize with reduced set of Primer3Params
-                            #pdb.set_trace()                            
-                            self._locals(self.tagging, left_primer=l_tagged, name='probe')
-                            k = '%s_%s_%s' % (p, ts, 'f')
-                            self.tagged_primers[k] = self._p_design()[0]
-                            # cleanup is automatic in _p_design
-                        else:
-                            c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
-                            self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
-                            r_tagged = self.tagged_tag + c_p
-                            # reverse
-                            r_tagged = r_tagged[::-1]
-                            # reinitialize with reduced set of Primer3Params
-                            self._locals(self.tagging, right_primer=r_tagged, name='probe')
-                            k = '%s_%s_%s' % (p, ts, 'r')
-                            #pdb.set_trace()
-                            self.tagged_primers[k] = self._p_design()[0]
-                            # cleanup is automatic in _p_design
+                    if kwargs[ts]:
+                        for s in xrange(2):
+                            if s == 0:
+                                #pdb.set_trace()
+                                c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_LEFT_SEQUENCE'])
+                                self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
+                                l_tagged = self.tagged_tag + c_p
+                                # reverse
+                                l_tagged = l_tagged[::-1]
+                                # reinitialize with reduced set of Primer3Params
+                                #pdb.set_trace()                            
+                                self._locals(self.tagging, left_primer=l_tagged, name='probe')
+                                k = '%s_%s_%s' % (p, ts, 'f')
+                                self.tagged_primers[k] = self._p_design()[0]
+                                # cleanup is automatic in _p_design
+                            else:
+                                c_t, c_p = self._complement(kwargs[ts]), self._complement(self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
+                                self.tagged_common, self.tagged_tag = self._common(c_t, c_p)
+                                r_tagged = self.tagged_tag + c_p
+                                # reverse
+                                r_tagged = r_tagged[::-1]
+                                # reinitialize with reduced set of Primer3Params
+                                self._locals(self.tagging, right_primer=r_tagged, name='probe')
+                                k = '%s_%s_%s' % (p, ts, 'r')
+                                #pdb.set_trace()
+                                self.tagged_primers[k] = self._p_design()[0]
+                                # cleanup is automatic in _p_design   
             self._bestprobe()
             #pdb.set_trace()            
         else:
