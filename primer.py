@@ -241,15 +241,13 @@ class Primers:
         if self.tagged_good.iteritems():
             right = False
             for k,v in self.tagged_good.iteritems():
-                for t in self.tag_seq:
-                    if v['PRIMER_RIGHT_SEQUENCE'].startswith(t):
-                        right = True
-                if right:
+                if v['PRIMER_TAGGED'] == 'LEFT':
+                    common, tag = self._common(pigtail, v['PRIMER_RIGHT_SEQUENCE'])
+                    self.tagged_good[k]['PRIMER_RIGHT_SEQUENCE'] = tag + v['PRIMER_RIGHT_SEQUENCE']
+                else:
                     common, tag = self._common(pigtail, v['PRIMER_LEFT_SEQUENCE'])
                     self.tagged_good[k]['PRIMER_LEFT_SEQUENCE'] = tag + v['PRIMER_LEFT_SEQUENCE']
-                else:
-                    common, tag = self._common(pigtail, v['PRIMER_RIGHT_SEQUENCE'])
-                    self.tagged_good[k]['PRIMER_RIGHT_SEQUENCE'] = tag + v['PRIMER_RIGHT_SEQUENCE']  
+
     
     def _good(self):
         '''select those primers meeting the minimum criteria for usefulness'''
@@ -342,7 +340,6 @@ class Primers:
     
     def tag(self, tagging, delete=True, **kwargs):
         '''tag and check newly designed primers'''
-        self.tag_seq = set()
         if self.primers_designed:
             self.tagging = tagging
             self.tagged_primers = {}
@@ -361,8 +358,10 @@ class Primers:
                                 self._locals(self.tagging, left_primer=l_tagged, right_primer=r_untagged, name='tagging')
                                 k = '%s_%s_%s' % (p, ts, 'f')
                                 self.tagged_primers[k] = self._p_design()[0]
+                                self.tagged_primers[k]['PRIMER_TAGGED'] = 'LEFT'
+                                self.tagged_primers[k]['PRIMER_LEFT_TAG_COMMON_BASES'] = self.tagged_common
+                                self.tagged_primers[k]['PRIMER_LEFT_TAG'] = self.tagged_tag
                                 # cleanup is automatic in _p_design
-                                self.tag_seq.add(self.tagged_tag) 
                             else:
                                 l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
                                 self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
@@ -372,7 +371,9 @@ class Primers:
                                 k = '%s_%s_%s' % (p, ts, 'r')
                                 #pdb.set_trace()
                                 self.tagged_primers[k] = self._p_design()[0]
-                                self.tag_seq.add(self.tagged_tag)
+                                self.tagged_primers[k]['PRIMER_TAGGED'] = 'LEFT'
+                                self.tagged_primers[k]['PRIMER_LEFT_TAG_COMMON_BASES'] = self.tagged_common
+                                self.tagged_primers[k]['PRIMER_LEFT_TAG'] = self.tagged_tag
             self._good()
             self._best()
         else:
