@@ -194,9 +194,15 @@ class Primers:
     
     def _p_design(self, delete = True):
         '''call primer3 and feed it our temporary design file'''
-        stdout, self.stderr = subprocess.Popen('primer3_core %s' % self.tf[1],\
-        shell=True, stdout=subprocess.PIPE, stdin=None, \
-        stderr=subprocess.PIPE, universal_newlines=True).communicate()
+        try:
+            stdout, self.stderr = subprocess.Popen('primer3_core %s' % self.tf[1],\
+            shell=True, stdout=subprocess.PIPE, stdin=None, \
+            stderr=subprocess.PIPE, universal_newlines=True).communicate()
+        except OSError, e:
+            if e.errno == errno.EINTR:
+                self._p_design
+            else:
+                raise
         # make sure that we close the stupid ass input file or we're going
         # to get the damn ValueError: filedescriptor out of range in select()
         # or OSError: [Errno 24] Too many open files
