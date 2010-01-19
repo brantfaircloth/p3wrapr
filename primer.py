@@ -122,7 +122,7 @@ class Settings:
             
 class Primers:                            
     def __init__(self):
-        pass
+        self.tagged_good = None
     
     def _locals(self, obj, **kwargs):
         #if ('left_primer' and 'right_primer') not in kwargs.keys() and 'sequence' not in kwargs.keys():
@@ -234,19 +234,6 @@ class Primers:
         if delete:
             self._rm_temp_file()
         return primers
-    
-    
-    def pigtail(self, pigtail = 'GTTT'):
-        '''Add pigtail to untagged primer of tagged pair'''
-        if self.tagged_good.iteritems():
-            right = False
-            for k,v in self.tagged_good.iteritems():
-                if v['PRIMER_TAGGED'] == 'LEFT':
-                    common, tag = self._common(pigtail, v['PRIMER_RIGHT_SEQUENCE'])
-                    self.tagged_good[k]['PRIMER_RIGHT_SEQUENCE'] = tag + v['PRIMER_RIGHT_SEQUENCE']
-                else:
-                    common, tag = self._common(pigtail, v['PRIMER_LEFT_SEQUENCE'])
-                    self.tagged_good[k]['PRIMER_LEFT_SEQUENCE'] = tag + v['PRIMER_LEFT_SEQUENCE']
 
     
     def _good(self):
@@ -359,8 +346,8 @@ class Primers:
                                 k = '%s_%s_%s' % (p, ts, 'f')
                                 self.tagged_primers[k] = self._p_design()[0]
                                 self.tagged_primers[k]['PRIMER_TAGGED'] = 'LEFT'
-                                self.tagged_primers[k]['PRIMER_LEFT_TAG_COMMON_BASES'] = self.tagged_common
-                                self.tagged_primers[k]['PRIMER_LEFT_TAG'] = self.tagged_tag
+                                self.tagged_primers[k]['PRIMER_TAG_COMMON_BASES'] = self.tagged_common
+                                self.tagged_primers[k]['PRIMER_TAG'] = self.tagged_tag
                                 # cleanup is automatic in _p_design
                             else:
                                 l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
@@ -371,9 +358,9 @@ class Primers:
                                 k = '%s_%s_%s' % (p, ts, 'r')
                                 #pdb.set_trace()
                                 self.tagged_primers[k] = self._p_design()[0]
-                                self.tagged_primers[k]['PRIMER_TAGGED'] = 'LEFT'
-                                self.tagged_primers[k]['PRIMER_LEFT_TAG_COMMON_BASES'] = self.tagged_common
-                                self.tagged_primers[k]['PRIMER_LEFT_TAG'] = self.tagged_tag
+                                self.tagged_primers[k]['PRIMER_TAGGED'] = 'RIGHT'
+                                self.tagged_primers[k]['PRIMER_TAG_COMMON_BASES'] = self.tagged_common
+                                self.tagged_primers[k]['PRIMER_TAG'] = self.tagged_tag
             self._good()
             self._best()
         else:
@@ -381,6 +368,28 @@ class Primers:
             self.tagged_best = None
     
             
+    def pigtail(self, pigtail = 'GTTT'):
+        '''Add pigtail to untagged primer of tagged pair'''
+        if self.tagged_good:
+            right = False
+            for k,v in self.tagged_good.iteritems():
+                if v['PRIMER_TAGGED'] == 'LEFT':
+                    common, tag = self._common(pigtail, v['PRIMER_RIGHT_SEQUENCE'])
+                    self.tagged_good[k]['PRIMER_RIGHT_SEQUENCE'] = tag + v['PRIMER_RIGHT_SEQUENCE']
+                else:
+                    common, tag = self._common(pigtail, v['PRIMER_LEFT_SEQUENCE'])
+                    self.tagged_good[k]['PRIMER_LEFT_SEQUENCE'] = tag + v['PRIMER_LEFT_SEQUENCE']
+        elif self.primers_designed:
+            #from PyQt4 import QtCore
+            #QtCore.pyqtRemoveInputHook()
+            #pdb.set_trace()
+            tag_settings = Settings()
+            tag_settings.reduced(PRIMER_PICK_ANYWAY=1)
+            self.tag(tag_settings, PIGTAIL=pigtail)
+            self._good()
+            self._best()
+    
+    
     def probe(self, tagging, delete=True, **kwargs):
         '''tag and check newly designed primers'''
         if self.primers_designed:
