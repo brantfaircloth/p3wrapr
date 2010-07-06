@@ -21,6 +21,7 @@ import string
 import tempfile
 import unittest
 import subprocess
+from PyQt4 import QtCore, QtGui 
 
 
 class Settings:
@@ -59,7 +60,7 @@ class Settings:
         self.params['PRIMER_MISPRIMING_LIBRARY']        = 'misprime_lib_weight'
         self.params['PRIMER_MAX_MISPRIMING']            = 7.00
     
-    def _basic(self):
+    def _basic(self, path):
         # basic parameters for primer checking
         self.params['PRIMER_TM_SANTALUCIA']             = 1     # boolean
         self.params['PRIMER_SALT_CONC']                 = 50.0  # mM
@@ -67,12 +68,15 @@ class Settings:
         self.params['PRIMER_SALT_CORRECTIONS']          = 1     # boolean
         self.params['PRIMER_DNTP_CONC']                 = 0.125 # mM
         self.params['PRIMER_THERMODYNAMIC_ALIGNMENT']   = 1
-        self.params['PRIMER_THERMODYNAMIC_PARAMETERS_PATH']    = os.path.join(os.path.dirname(self._which('primer3_core')), 'primer3_config/')
+        if not path:
+            self.params['PRIMER_THERMODYNAMIC_PARAMETERS_PATH']    = os.path.join(os.path.dirname(self._which('primer3_core')), 'primer3_config/')
+        else:
+            self.params['PRIMER_THERMODYNAMIC_PARAMETERS_PATH']    = path
         self.params['PRIMER_MAX_POLY_X']                = 3     # nt
         self.params['PRIMER_EXPLAIN_FLAG']              = 1     # boolean
     
-    def basic(self, mispriming=False, **kwargs):
-        self._basic()
+    def basic(self, path=False, mispriming=False, **kwargs):
+        self._basic(path)
         self.params['PRIMER_PRODUCT_SIZE_RANGE']        = '150-450'
         self.params['PRIMER_MIN_TM']                    = 57.   # deg C
         self.params['PRIMER_MAX_TM']                    = 62.   # deg C
@@ -98,8 +102,8 @@ class Settings:
         for k,v in kwargs.iteritems():
             self.params[k]                              = v
     
-    def reduced(self, mispriming=False, **kwargs):
-        self._basic()
+    def reduced(self, path=False, mispriming=False, **kwargs):
+        self._basic(path)
         if mispriming:
             self.mispriming()
         for k,v in kwargs.iteritems():
@@ -122,8 +126,9 @@ class Settings:
         self.params[key] = value
             
 class Primers:                            
-    def __init__(self):
-        self.tagged_good = None
+    def __init__(self, binary='primer3_core'):
+        self.tagged_good    = None
+        self.binary         = binary
     
     def _locals(self, obj, **kwargs):
         #if ('left_primer' and 'right_primer') not in kwargs.keys() and 'sequence' not in kwargs.keys():
@@ -151,9 +156,10 @@ class Primers:
     
     def _create_temp_file(self, od, td):
         '''create the temporary input file for use by the primer3 binary'''
-        self.tf = tempfile.mkstemp(prefix='primer-%s-' % \
+        fd, self.tf = tempfile.mkstemp(prefix='primer-%s-' % \
         od['SEQUENCE_ID'], suffix='.tmp', dir=td)
-        tfh = open(self.tf[1], 'w')
+        os.close(fd)
+        tfh = open(self.tf, 'w')
         for k,v in od.iteritems():
             tfh.write('%s=%s\n' % (k, v))
         tfh.write('=')
@@ -162,7 +168,7 @@ class Primers:
     
     def _rm_temp_file(self):
         '''remove the temporary files area following primer design'''
-        os.remove(self.tf[1])
+        os.remove(self.tf)
         #os.rmdir(self.td)
     
     def _common(self, tag, primer):
@@ -195,8 +201,10 @@ class Primers:
     
     def _p_design(self, delete = True):
         '''call primer3 and feed it our temporary design file'''
+        #QtCore.pyqtRemoveInputHook()
+        #pdb.set_trace()
         try:
-            stdout, self.stderr = subprocess.Popen('primer3_core %s' % self.tf[1],\
+            stdout,stderr = subprocess.Popen('%s %s' % (self.binary, self.tf),\
             shell=True, stdout=subprocess.PIPE, stdin=None, \
             stderr=subprocess.PIPE, universal_newlines=True).communicate()
         except OSError, e:
@@ -204,12 +212,12 @@ class Primers:
                 self._p_design
             else:
                 raise
-        # make sure that we close the stupid ass input file or we're going
-        # to get the damn ValueError: filedescriptor out of range in select()
-        # or OSError: [Errno 24] Too many open files
-        os.close(self.tf[0])
-        #pdb.set_trace()
-        if not self.stderr and stdout:
+        except AttributeError:
+            self._p_design
+        except:
+            print "Unexpected error:", sys.exc_info()[0]
+            raise
+        if stdout:
             primers = {}
             stdout = stdout.split('\n')
             for l in stdout:
@@ -217,7 +225,7 @@ class Primers:
                     name, val = l.split('=')
                     try:
                         val = float(val)
-                    except:
+                    except ValueError:
                         pass
                     if name in ['PRIMER_LEFT_EXPLAIN', 
                     'PRIMER_RIGHT_EXPLAIN', 'PRIMER_PAIR_EXPLAIN']:
@@ -245,6 +253,8 @@ class Primers:
     
     def _good(self):
         '''select those primers meeting the minimum criteria for usefulness'''
+        #QtCore.pyqtRemoveInputHook()
+        #pdb.set_trace()
         self.tagged_good = {}
         min_qual = {
             'PRIMER_PAIR_COMPL_ANY_TH':45.,
@@ -266,10 +276,16 @@ class Primers:
                     break
             if okay:
                 self.tagged_good[k] = v
+                # add null values for pigtails
+                self.tagged_good[k]['PRIMER_PIGTAILED']                = None
+                self.tagged_good[k]['PRIMER_PIGTAIL_TAG_COMMON_BASES'] = None
+                self.tagged_good[k]['PRIMER_PIGTAIL_TAG']              = None
     
     def _best(self):
         '''select the best tagged primer from the group, and screen it to 
         ensure that it is still within normal spec for complementarity'''
+        #QtCore.pyqtRemoveInputHook()
+        #pdb.set_trace()
         self.tagged_best    = None
         self.tagged_best_id = None
         low_penalty = None
@@ -356,6 +372,7 @@ class Primers:
                                 self.tagged_primers[k]['PRIMER_TAG_COMMON_BASES'] = self.tagged_common
                                 self.tagged_primers[k]['PRIMER_TAG'] = self.tagged_tag
                                 # cleanup is automatic in _p_design
+                                
                             else:
                                 l_untagged = self.primers[p]['PRIMER_LEFT_SEQUENCE']
                                 self.tagged_common, self.tagged_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
@@ -370,29 +387,39 @@ class Primers:
                                 self.tagged_primers[k]['PRIMER_TAG'] = self.tagged_tag
             self._good()
             self._best()
+            #QtCore.pyqtRemoveInputHook()
+            #pdb.set_trace()
         else:
             self.tagged_primers = None
             self.tagged_best = None
     
             
-    def pigtail(self, pigtail = 'GTTT'):
+    def pigtail(self, tagging, pigtail = 'GTTT'):
         '''Add pigtail to untagged primer of tagged pair'''
         if self.tagged_good:
             right = False
             for k,v in self.tagged_good.iteritems():
                 if v['PRIMER_TAGGED'] == 'LEFT':
-                    common, tag = self._common(pigtail, v['PRIMER_RIGHT_SEQUENCE'])
-                    self.tagged_good[k]['PRIMER_RIGHT_SEQUENCE'] = tag + v['PRIMER_RIGHT_SEQUENCE']
+                    self.tagged_good[k]['PRIMER_PIGTAILED'] = 'RIGHT'
+                    self.tagged_good[k]['PRIMER_PIGTAIL_TAG_COMMON_BASES'], \
+                        self.tagged_good[k]['PRIMER_PIGTAIL_TAG'] = \
+                        self._common(pigtail, v['PRIMER_RIGHT_SEQUENCE'])
+                    self.tagged_good[k]['PRIMER_RIGHT_SEQUENCE'] = self.tagged_good[k]['PRIMER_PIGTAIL_TAG'] + v['PRIMER_RIGHT_SEQUENCE']
+                    #QtCore.pyqtRemoveInputHook()
+                    #pdb.set_trace()
                 else:
-                    common, tag = self._common(pigtail, v['PRIMER_LEFT_SEQUENCE'])
-                    self.tagged_good[k]['PRIMER_LEFT_SEQUENCE'] = tag + v['PRIMER_LEFT_SEQUENCE']
+                    #QtCore.pyqtRemoveInputHook()
+                    #pdb.set_trace()
+                    self.tagged_good[k]['PRIMER_PIGTAILED'] = 'LEFT'
+                    self.tagged_good[k]['PRIMER_PIGTAIL_TAG_COMMON_BASES'], \
+                        self.tagged_good[k]['PRIMER_PIGTAIL_TAG'] = \
+                        self._common(pigtail, v['PRIMER_LEFT_SEQUENCE'])
+                    self.tagged_good[k]['PRIMER_LEFT_SEQUENCE'] = self.tagged_good[k]['PRIMER_PIGTAIL_TAG'] + v['PRIMER_LEFT_SEQUENCE']
         elif self.primers_designed:
             #from PyQt4 import QtCore
             #QtCore.pyqtRemoveInputHook()
             #pdb.set_trace()
-            tag_settings = Settings()
-            tag_settings.reduced(PRIMER_PICK_ANYWAY=1)
-            self.tag(tag_settings, PIGTAIL=pigtail)
+            self.tag(tagging, PIGTAIL=pigtail)
             self._good()
             self._best()
     
