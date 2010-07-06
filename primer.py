@@ -385,6 +385,7 @@ class Primers:
                                 self.tagged_primers[k]['PRIMER_TAGGED'] = 'RIGHT'
                                 self.tagged_primers[k]['PRIMER_TAG_COMMON_BASES'] = self.tagged_common
                                 self.tagged_primers[k]['PRIMER_TAG'] = self.tagged_tag
+                            self.tagged_primers[k]['PRIMER_TAG_PRODUCT_SIZE'] = self.primers[p]['PRIMER_PAIR_PRODUCT_SIZE'] + len(self.tagged_tag)
             self._good()
             self._best()
             #QtCore.pyqtRemoveInputHook()
@@ -415,6 +416,8 @@ class Primers:
                         self.tagged_good[k]['PRIMER_PIGTAIL_TAG'] = \
                         self._common(pigtail, v['PRIMER_LEFT_SEQUENCE'])
                     self.tagged_good[k]['PRIMER_LEFT_SEQUENCE'] = self.tagged_good[k]['PRIMER_PIGTAIL_TAG'] + v['PRIMER_LEFT_SEQUENCE']
+                # update the size of the tagged primer + pigtail
+                self.tagged_good[k]['PRIMER_TAG_PRODUCT_SIZE'] += len(self.tagged_good[k]['PRIMER_PIGTAIL_TAG'])
         elif self.primers_designed:
             #from PyQt4 import QtCore
             #QtCore.pyqtRemoveInputHook()
