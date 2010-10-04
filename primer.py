@@ -217,6 +217,7 @@ class Primers:
         except:
             print "Unexpected error:", sys.exc_info()[0]
             raise
+        #pdb.set_trace()
         if stdout:
             primers = {}
             stdout = stdout.split('\n')
