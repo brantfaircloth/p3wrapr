@@ -61,14 +61,15 @@ class Settings:
 
     def _mispriming(self):
         self.params['PRIMER_MISPRIMING_LIBRARY']        = 'misprime_lib_weight'
-        self.params['PRIMER_MAX_MISPRIMING']            = 7.00
+        self.params['PRIMER_MAX_LIBRARY_MISPRIMING']    = 7.00
     
     def _basic(self, path):
         # basic parameters for primer checking
-        self.params['PRIMER_TM_SANTALUCIA']             = 1     # boolean
-        self.params['PRIMER_SALT_CONC']                 = 50.0  # mM
-        self.params['PRIMER_DIVALENT_CONC']             = 1.5   # mM
+        self.params['PRIMER_TM_FORMULA']                = 1     # boolean
         self.params['PRIMER_SALT_CORRECTIONS']          = 1     # boolean
+        self.params['PRIMER_SALT_MONOVALENT']           = 50.0  # mM
+        self.params['PRIMER_SALT_DIVALENT']             = 1.5   # mM
+        
         self.params['PRIMER_DNTP_CONC']                 = 0.125 # mM
         self.params['PRIMER_THERMODYNAMIC_ALIGNMENT']   = 1
         if not path:
@@ -84,7 +85,7 @@ class Settings:
         self.params['PRIMER_MIN_TM']                    = 57.   # deg C
         self.params['PRIMER_MAX_TM']                    = 62.   # deg C
         self.params['PRIMER_OPT_TM']                    = 60.   # deg C
-        self.params['PRIMER_MAX_DIFF_TM']               = 5.    # deg C
+        self.params['PRIMER_PAIR_MAX_DIFF_TM']          = 5.    # deg C
         self.params['PRIMER_OPT_SIZE']                  = 19    # nt
         self.params['PRIMER_MIN_SIZE']                  = 16    # nt
         self.params['PRIMER_MIN_GC']                    = 30.0  # percent
@@ -95,8 +96,8 @@ class Settings:
         self.params['PRIMER_PAIR_MAX_COMPL_ANY_TH']     = 45.   # deg C
         self.params['PRIMER_MAX_SELF_END_TH']           = 40.   # deg C
         self.params['PRIMER_PAIR_MAX_COMPL_END_TH']     = 40.   # deg C
-        self.params['PRIMER_MAX_HAIRPIN']               = 24.   # deg C
-        self.params['PRIMER_PAIR_MAX_HAIRPIN']          = 24.   # deg C
+        self.params['PRIMER_MAX_HAIRPIN_TH']            = 24.   # deg C
+        self.params['PRIMER_PAIR_MAX_HAIRPIN_TH']       = 24.   # deg C
         self.params['PRIMER_MAX_END_STABILITY']         = 8.0   # delta G
         self.params['PRIMER_LOWERCASE_MASKING']         = 1     # avoids 3' mask
         self.params['PRIMER_NUM_RETURN']                = 4     # count
