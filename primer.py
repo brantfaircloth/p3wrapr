@@ -21,7 +21,10 @@ import string
 import tempfile
 import unittest
 import subprocess
-from PyQt4 import QtCore, QtGui 
+try:
+    from PyQt4 import QtCore, QtGui
+except:
+    pass
 
 
 class Settings:
@@ -395,7 +398,65 @@ class Primers:
             self.tagged_primers = None
             self.tagged_best = None
     
-            
+    def dtag(self, tagging, delete=True, **kwargs):
+        '''tag and check newly designed primers'''
+        if self.primers_designed:
+            self.tagging = tagging
+            self.tagged_primers = {}
+            #pdb.set_trace()
+            primers = self.primers.keys()
+            primers.remove('metadata')
+            for p in primers:
+                for ts in kwargs:
+                    if kwargs[ts]:
+                        self.tagged_l_common, self.tagged_l_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_LEFT_SEQUENCE'])
+                        l_tagged = self.tagged_l_tag + self.primers[p]['PRIMER_LEFT_SEQUENCE']
+                        self.tagged_r_common, self.tagged_r_tag = self._common(kwargs[ts], self.primers[p]['PRIMER_RIGHT_SEQUENCE'])
+                        r_tagged = self.tagged_r_tag + self.primers[p]['PRIMER_RIGHT_SEQUENCE']
+                        # reinitialize with reduced set of Primer3Params
+                        self._locals(self.tagging, left_primer=l_tagged, right_primer=r_tagged, name='tagging')
+                        k = '%s_%s_%s' % (p, ts, 'f')
+                        self.tagged_primers[k] = self._p_design()[0]
+                        self.tagged_primers[k]['PRIMER_TAGGED'] = 'BOTH'
+                        self.tagged_primers[k]['PRIMER_LEFT_TAG_COMMON_BASES'] = self.tagged_l_common
+                        self.tagged_primers[k]['PRIMER_RIGHT_TAG_COMMON_BASES'] = self.tagged_r_common
+                        self.tagged_primers[k]['PRIMER_LEFT_TAG'] = self.tagged_l_tag
+                        self.tagged_primers[k]['PRIMER_RIGHT_TAG'] = self.tagged_r_tag
+            #if len(self.tagged_primers) > 1:
+            self._good()
+            self._best()
+            #else:
+                
+            #QtCore.pyqtRemoveInputHook()
+            #pdb.set_trace()
+        else:
+            self.tagged_primers = None
+            self.tagged_best = None
+    
+    def check(self, tagging, delete=True, **kwargs):
+        '''check primers designed elsewhere'''
+        if self.primers_designed:
+            self.tagging = tagging
+            self.checked_primers = {}
+            #pdb.set_trace()
+            primers = self.primers.keys()
+            primers.remove('metadata')
+            for p in primers:
+                # reinitialize with reduced set of Primer3Params
+                self._locals(self.tagging, left_primer=self.primers[p]['PRIMER_LEFT_SEQUENCE'], right_primer=self.primers[p]['PRIMER_RIGHT_SEQUENCE'], name='checking')
+                self.checked_primers[p] = self._p_design()[0]
+                self.checked_primers[p]['PRIMER_TAGGED'] = 'NONE'
+            #if len(self.tagged_primers) > 1:
+            # self._good()
+            # self._best()
+            #else:
+
+            #QtCore.pyqtRemoveInputHook()
+            #pdb.set_trace()
+        else:
+            self.tagged_primers = None
+            self.tagged_best = None
+
     def pigtail(self, tagging, pigtail = 'GTTT'):
         '''Add pigtail to untagged primer of tagged pair'''
         if self.tagged_good:
