@@ -208,7 +208,7 @@ class Primers:
         #QtCore.pyqtRemoveInputHook()
         #pdb.set_trace()
         try:
-            stdout,stderr = subprocess.Popen('%s %s' % (self.binary, self.tf),\
+            stdout,stderr = subprocess.Popen('%s -strict_tags %s' % (self.binary, self.tf),\
             shell=True, stdout=subprocess.PIPE, stdin=None, \
             stderr=subprocess.PIPE, universal_newlines=True).communicate()
         except OSError, e:
