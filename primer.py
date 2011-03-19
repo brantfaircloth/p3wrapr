@@ -242,7 +242,7 @@ class Primers:
                         val = float(val)
                     except ValueError:
                         pass
-                    if name in ['PRIMER_LEFT_EXPLAIN', 
+                    if name in ['PRIMER_LEFT_EXPLAIN', 'PRIMER_SALT_DIVALENT',
                     'PRIMER_RIGHT_EXPLAIN', 'PRIMER_PAIR_EXPLAIN']:
                         if 'metadata' not in primers.keys():
                             primers['metadata'] = {name:val}
