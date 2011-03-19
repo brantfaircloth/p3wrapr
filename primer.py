@@ -28,11 +28,12 @@ except:
 
 
 class Settings:
-    def __init__(self):
+    def __init__(self, binary = 'primer3_core'):
         '''set default primer3 params'''
         #pdb.set_trace()
         self.td = None
         self.params = {}
+        self.binary = binary
         # create temporary directory
         if not self.td or not os.path.isdir(self.td):
             self.td = tempfile.mkdtemp(prefix='py-primer3-', suffix='')
@@ -73,7 +74,7 @@ class Settings:
         self.params['PRIMER_DNTP_CONC']                 = 0.125 # mM
         self.params['PRIMER_THERMODYNAMIC_ALIGNMENT']   = 1
         if not path:
-            self.params['PRIMER_THERMODYNAMIC_PARAMETERS_PATH']    = os.path.join(os.path.dirname(self._which('primer3_core')), 'primer3_config/')
+            self.params['PRIMER_THERMODYNAMIC_PARAMETERS_PATH']    = os.path.join(os.path.dirname(self._which(self.binary)), 'primer3_config/')
         else:
             self.params['PRIMER_THERMODYNAMIC_PARAMETERS_PATH']    = path
         self.params['PRIMER_MAX_POLY_X']                = 3     # nt
@@ -222,6 +223,15 @@ class Primers:
             print "Unexpected error:", sys.exc_info()[0]
             raise
         #pdb.set_trace()
+        if stderr != '':
+            stderr = stderr.split('\n')
+            for l in stderr:
+                try:
+                    name, val = l.split('=')
+                    if name == 'PRIMER_ERROR':
+                        raise ValueError, val
+                except:
+                    raise ValueError, "Cannot parse primer3 stderr. Ensure primer3 binary is installed."
         if stdout:
             primers = {}
             stdout = stdout.split('\n')
@@ -246,7 +256,7 @@ class Primers:
                         else:
                             primers[k][name] = val
                 except:
-                    pass
+                    raise ValueError, "Cannot parse primer3 stdout.  Ensure primer3 binary is installed."
         else:
             primers = None
         #pdb.set_trace()
