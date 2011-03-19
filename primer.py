@@ -255,8 +255,9 @@ class Primers:
                             primers[k] = {name:val}
                         else:
                             primers[k][name] = val
-                except:
-                    raise ValueError, "Cannot parse primer3 stdout.  Ensure primer3 binary is installed."
+                except ValueError:
+                    # skip a bunch of additional metadata stuff we don't need
+                    pass
         else:
             primers = None
         #pdb.set_trace()
