@@ -255,7 +255,7 @@ class Primers:
                             primers[k] = {name:val}
                         else:
                             primers[k][name] = val
-                except ValueError:
+                except ValueError, IndexError:
                     # skip a bunch of additional metadata stuff we don't need
                     pass
         else:
